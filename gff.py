@@ -59,12 +59,13 @@ class GtfFile():
         if ensembl_v_match:
             self.ensembl_v = ensembl_v_match.group(1)
             print(f"Gtf Ensembl version = {self.ensembl_v}")
-
-        date_pattern = re.compile(r"#date: (\d+)-(\d+)-(\d+)")
+        
+        # looking for string in format yyyy-mm-dd
+        date_pattern = re.compile(r"\b\d{4}-\d{2}-\d{2}\b")
         date_match = date_pattern.search(self.header)
 
         if date_match:
-            self.date = date_match.group(1)
+            self.date = date_match.group()
             print(f"Date of the gtf: {self.date}")
 
 
@@ -92,15 +93,15 @@ class GtfFile():
         exons_dict = dict()
 
         # sets where gtf objects will be stored
-        genes_set = set()
-        transcripts_set = set()
-        exons_set = set()
-        introns_set = set()
-        cds_set = set()
-        start_codon_set = set()
-        stop_codon_set = set()
-        utr_set = set()
-        selenocysteine_set = set()
+        genes_list = list()
+        transcripts_list = list()
+        exons_list = list()
+        introns_list = list()
+        cds_list = list()
+        start_codon_list = list()
+        stop_codon_list = list()
+        utr_list = list()
+        selenocysteine_list = list()
 
 
         genomic_type_set = set()
@@ -113,7 +114,7 @@ class GtfFile():
                 # creating gene instance and added to genes dictionary
                 gtf_gene_ins = GtfGene(line)
                 genes_dict[gtf_gene_ins.gene_id] = gtf_gene_ins
-                genes_set.add(gtf_gene_ins)
+                genes_list.append(gtf_gene_ins)
 
             elif genomic_type == "transcript":
                 gtf_transcript_ins = GtfTranscript(line)
@@ -121,49 +122,49 @@ class GtfFile():
                     if gtf_transcript_ins.tag == "MANE_Select":
                         gtf_transcript_ins.is_mane = "MANE_Select"
                 transcripts_dict[gtf_transcript_ins.transcript_id] = gtf_transcript_ins
-                transcripts_set.add(gtf_transcript_ins)
+                transcripts_list.append(gtf_transcript_ins)
 
             elif genomic_type == "exon":
                 gtf_exon_ins = GtfExon(line)
                 exon_id = gtf_exon_ins.exon_id.split("_")[0]
                 exons_dict[exon_id] = gtf_exon_ins
-                exons_set.add(gtf_exon_ins)
+                exons_list.append(gtf_exon_ins)
 
             elif genomic_type == "intron":
                 gtf_intron_ins = GtfIntron(line)
-                introns_set.add(gtf_intron_ins)
+                introns_list.append(gtf_intron_ins)
 
             elif genomic_type == "CDS":
                 gtf_cds_ins = GtfCds(line)
-                cds_set.add(gtf_cds_ins)
+                cds_list.append(gtf_cds_ins)
 
             elif genomic_type == "start_codon":
                 gtf_start_codon_ins = GtfStartCodon(line)
-                start_codon_set.add(gtf_start_codon_ins)
+                start_codon_list.append(gtf_start_codon_ins)
 
             elif genomic_type == "stop_codon":
                 gtf_stop_codon_ins = GtfStopCodon(line)
-                stop_codon_set.add(gtf_stop_codon_ins)
+                stop_codon_list.append(gtf_stop_codon_ins)
 
             elif genomic_type == "UTR":
                 gtf_utr_ins = GtfUtr(line)
-                utr_set.add(gtf_utr_ins)
+                utr_list.append(gtf_utr_ins)
 
             elif genomic_type == "Selenocysteine":
                 gtf_selenocysteine_ins = GtfSelenocysteine(line)
-                selenocysteine_set.add(gtf_selenocysteine_ins)
+                selenocysteine_list.append(gtf_selenocysteine_ins)
                 # print(line)
 
-        features_set = {
-            "genes": genes_set,
-            "transcripts": transcripts_set,
-            "exons": exons_set,
-            "introns": introns_set,
-            "cds": cds_set,
-            "start_codon": start_codon_set,
-            "stop_codon": stop_codon_set,
-            "utr": utr_set,
-            "selenocysteine": selenocysteine_set
+        features_list = {
+            "genes": genes_list,
+            "transcripts": transcripts_list,
+            "exons": exons_list,
+            "introns": introns_list,
+            "cds": cds_list,
+            "start_codon": start_codon_list,
+            "stop_codon": stop_codon_list,
+            "utr": utr_list,
+            "selenocysteine": selenocysteine_list
         }
 
         ids_gtf_object = {
@@ -171,29 +172,31 @@ class GtfFile():
             "transcripts": transcripts_dict,
             "exons": exons_dict,
         }
-        return(features_set, ids_gtf_object)
+        return(features_list, ids_gtf_object)
 
     def connect_gtf_objs(self):
-        features_set, ids_gtf_object = self.parse_gtf_line()
+        features_list, ids_gtf_object = self.parse_gtf_line()
 
         genes_dict = ids_gtf_object["genes"]
         transcripts_dict = ids_gtf_object["transcripts"]
         exons_dict = ids_gtf_object["exons"]
 
-        for selenocysteine_ins in features_set["selenocysteine"]:
+        print("Associating each entity with its parent, e.g: gene->transcripts->exons/introns/CDS")
+
+        for selenocysteine_ins in features_list["selenocysteine"]:
             transcript_id = selenocysteine_ins.transcript_id
 
             transcript_ins = transcripts_dict[transcript_id]
             transcript_ins.selenocysteine.append(selenocysteine_ins)
         
-        for utr_ins in features_set["utr"]:
+        for utr_ins in features_list["utr"]:
             transcript_id = utr_ins.transcript_id
 
             transcript_ins = transcripts_dict[transcript_id]
             transcript_ins.utr.append(utr_ins)
 
         
-        for start_codon_ins in features_set["start_codon"]:
+        for start_codon_ins in features_list["start_codon"]:
             exon_id = start_codon_ins.exon_id
             transcript_id = start_codon_ins.transcript_id
 
@@ -203,7 +206,7 @@ class GtfFile():
             exon_ins.start_codon.add(start_codon_ins)
             transcript_ins.start_codon.add(start_codon_ins)
 
-        for stop_codon_ins in features_set["stop_codon"]:
+        for stop_codon_ins in features_list["stop_codon"]:
             exon_id = stop_codon_ins.exon_id
             transcript_id = stop_codon_ins.transcript_id
 
@@ -213,7 +216,7 @@ class GtfFile():
             exon_ins.stop_codon.add(stop_codon_ins)
             transcript_ins.stop_codon.add(stop_codon_ins)
         
-        for cds_ins in features_set["cds"]:
+        for cds_ins in features_list["cds"]:
             exon_id = cds_ins.exon_id
             transcript_id = cds_ins.transcript_id
 
@@ -223,7 +226,7 @@ class GtfFile():
             exon_ins.cds.append(cds_ins)
             transcript_ins.cds.append(cds_ins)
 
-        for intron_ins in features_set["introns"]:
+        for intron_ins in features_list["introns"]:
             transcript_id = intron_ins.transcript_id
             gene_id = intron_ins.gene_id
 
@@ -244,7 +247,7 @@ class GtfFile():
             transcript_ins.exons.append(intron_ins)
             gene_ins.add(intron_ins)
 
-        for exon_ins in features_set["exons"]:
+        for exon_ins in features_list["exons"]:
             gene_id = exon_ins.gene_id
             transcript_id = exon_ins.transcript_id
 
@@ -266,7 +269,7 @@ class GtfFile():
             transcript_ins.exons.append(exon_ins)
         
         # accessing each transcript object
-        for transcript_ins in features_set["transcripts"]:
+        for transcript_ins in features_list["transcripts"]:
             gene_id = transcript_ins.gene_id
             gene_ins = genes_dict[gene_id]
             if transcript_ins.is_mane == "MANE_Select":
@@ -280,7 +283,7 @@ class GtfFile():
                 gene_ins.transcript_most_exons = transcript_ins
             gene_ins.transcripts.append(transcript_ins)
     
-        return(features_set)
+        return(features_list)
         
     def create_spliceai_file(self):
         header = "#NAME\tCHROM\tSTRAND\tTX_START\tTX_END\tEXON_START\tEXON_END\n"
@@ -290,9 +293,10 @@ class GtfFile():
         file_path = os.path.join(spliceai_dir, filename)
         print(file_path)
 
-        features_set = self.connect_gtf_objs()
-        genes = features_set["genes"]
+        features_list = self.connect_gtf_objs()
+        genes = features_list["genes"]
 
+        print(f"Creating new spliceAI file: {file_path}")
         with open(file_path, "w") as f:
             f.write(header)
             for gene in genes:
@@ -303,21 +307,33 @@ class GtfFile():
                 
                 name = transcript_ins.gene_name
                 chr = transcript_ins.chr
+
                 if "chr" in chr:
                     chr = chr.replace("chr", "")
+            
                 strand = transcript_ins.strand
                 start = transcript_ins.start
                 end = transcript_ins.end
                 exons = transcript_ins.exons
+            
                 exon_starts = list()
-                exon_ends = list()
+                # dict with key= exon start, value = exon end
+                exon_ends_dict = dict()
+            
                 for exon in exons:
                     exon_starts.append(int(exon.start)-1)
-                    exon_ends.append(int(exon.end))
+                    exon_ends_dict[int(exon.start)-1] = exon.end
+                if exon_starts:
+                    # sorting exons by its start position
+                    exon_starts.sort()
+                    # craeting exons_end list sorted by exon start position
+                    exon_ends = [exon_ends_dict[int(exon_start)] for exon_start in exon_starts]
+                
                 if len(exon_starts) != len(exon_ends):
                     raise(ValueError(
                         f"number of exons starts and ends are different: {len(exon_starts)}\t {len(exon_ends)}"
                     ))
+            
                 if exon_starts and exon_ends:
                     exon_start_string = ",".join(str(exon_start) for exon_start in exon_starts)
                     exon_end_string = ",".join(str(exon_end) for exon_end in exon_ends)
@@ -334,8 +350,26 @@ class GtfFile():
                 output_line += "\n"
                 f.write(output_line)
 
+        return file_path
 
+    def sort_spliceAI_file(self, spliceAI_file_path):
+        """
+        Sorting the SpliceAI transcript file by chromosome and start position of the transcripts:
+        
+        Params:
+            spliceAI_file_path(str): abs path where spliceAI file is.
+        Returns:
+            out_file_path(str): abs path where sorted spliceAI file is.
+        """ 
+        directory = os.path.dirname(spliceAI_file_path)
+        filename = os.path.basename(spliceAI_file_path)
+        out_filename = f"sorted_{filename}"
+        out_file_path = os.path.join(directory, out_filename)
 
+        print(f"sorting {spliceAI_file_path}")
+        cmd = f"sort -k2,2 -k4,4n {spliceAI_file_path} > sorted_{out_file_path}"
+        print(f"Sorting completed, new file in: {out_file_path}")
+        subprocess.run(cmd)
 
             
 class GtfLine():
